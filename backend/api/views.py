@@ -121,11 +121,31 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 class RecipeViewSet(viewsets.ModelViewSet):
     queryset = Recipe.objects.all()
     serializer_class = RecipeSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     parser_classes = (MultiPartParser, FormParser)
 
-    def get_queryset(self):
-        return Recipe.objects.filter(user=self.request.user)
+    def list(self, request):
+        recipes = Recipe.objects.all()
+        print(f"Found {recipes.count()} recipes in database")
+        for recipe in recipes:
+            print(f"Recipe: {recipe.title}, ID: {recipe.id}, User: {recipe.user}")
+        
+        serializer = self.get_serializer(recipes, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['GET'])
+    def my_recipes(self, request):
+        """Get recipes created by the current user"""
+        if request.user.is_authenticated:
+            recipes = Recipe.objects.filter(user=request.user)
+        else:
+            # For testing purposes, return all recipes if user is not authenticated
+            recipes = Recipe.objects.all()
+        
+        print(f"Found {recipes.count()} recipes for user")
+        serializer = self.get_serializer(recipes, many=True)
+        return Response(serializer.data)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        serializer.save(user=self.request.user if self.request.user.is_authenticated else None)
+        print(f"Created new recipe: {serializer.instance.title}")

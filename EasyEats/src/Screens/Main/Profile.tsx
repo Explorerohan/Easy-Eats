@@ -56,6 +56,7 @@ export default function Profile({ navigation }: ProfileProps) {
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [recipes, setRecipes] = useState([]);
   const [profileData, setProfileData] = useState({
     name: '',
     bio: '',
@@ -85,10 +86,12 @@ export default function Profile({ navigation }: ProfileProps) {
 
   useEffect(() => {
     fetchProfile();
+    fetchUserRecipes();
     
-    // Add focus listener to refresh data when returning from EditProfile
+    // Add focus listener to refresh data when returning from EditProfile or AddRecipe
     const unsubscribe = navigation.addListener('focus', () => {
       fetchProfile();
+      fetchUserRecipes();
     });
 
     return unsubscribe;
@@ -133,6 +136,24 @@ export default function Profile({ navigation }: ProfileProps) {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUserRecipes = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/recipes/my_recipes/`);
+      console.log('Fetched user recipes:', response.data);
+      // Log the image URLs for debugging
+      response.data.forEach(recipe => {
+        console.log('Recipe:', recipe.title);
+        console.log('Image URL:', recipe.image ? `${API_URL}${recipe.image}` : 'No image');
+      });
+      setRecipes(response.data);
+    } catch (error) {
+      console.error('Error fetching recipes:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Error details:', error.response?.data);
+      }
     }
   };
 
@@ -206,6 +227,57 @@ export default function Profile({ navigation }: ProfileProps) {
     } catch (error) {
       console.warn('Settings action error:', error);
     }
+  };
+
+  const renderRecipeCard = ({ item }) => {
+    // Construct the full image URL
+    const imageUrl = item.image 
+      ? item.image.startsWith('http') 
+        ? item.image 
+        : `${API_URL}${item.image}`
+      : null;
+    
+    console.log('Rendering recipe card:', item.title);
+    console.log('Image path:', item.image);
+    console.log('Full image URL:', imageUrl);
+    
+    return (
+      <TouchableOpacity 
+        style={styles.recipeCard}
+        onPress={() => navigation.navigate('RecipeDetail', { recipe: item })}
+      >
+        <Image
+          source={imageUrl ? { uri: imageUrl } : pasta2}
+          style={styles.recipeImage}
+          onError={(error) => {
+            console.error('Image loading error for recipe:', item.title);
+            console.error('Failed URL:', imageUrl);
+            console.error('Error details:', error.nativeEvent.error);
+          }}
+          defaultSource={pasta2}
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.8)']}
+          style={styles.recipeGradient}
+        >
+          <View style={styles.recipeInfo}>
+            <Text style={styles.recipeTitle} numberOfLines={2}>
+              {item.title}
+            </Text>
+            <View style={styles.recipeMetaInfo}>
+              <View style={styles.metaItem}>
+                <Ionicons name="time-outline" size={16} color="#FFF" />
+                <Text style={styles.metaText}>{item.cooking_time} min</Text>
+              </View>
+              <View style={styles.metaItem}>
+                <Ionicons name="star" size={16} color="#FFD700" />
+                <Text style={styles.metaText}>{item.difficulty || 'Easy'}</Text>
+              </View>
+            </View>
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
   };
 
   return (
@@ -356,115 +428,46 @@ export default function Profile({ navigation }: ProfileProps) {
           </View>
         )}
 
-        {/* My Recipes Section */}
+        {/* Recipes Section */}
         <View style={styles.recipesSection}>
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleContainer}>
-              <Ionicons name="restaurant" size={24} color="#1A1A1A" />
-              <Text style={styles.sectionTitle}>My Recipes</Text>
-            </View>
-            <TouchableOpacity style={styles.seeAllButton}>
-              <Text style={styles.seeAllText}>See All</Text>
-              <Ionicons name="arrow-forward" size={16} color="#007AFF" />
+            <Text style={styles.sectionTitle}>My Recipes</Text>
+            <TouchableOpacity 
+              style={styles.addRecipeButton}
+              onPress={() => navigation.navigate('AddRecipe')}
+            >
+              <Ionicons name="add-circle-outline" size={24} color="#007AFF" />
             </TouchableOpacity>
           </View>
-
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.recipesContainer}
-            decelerationRate="fast"
-            snapToInterval={CARD_WIDTH + 20}
-            snapToAlignment="center"
-          >
-            {/* Recipe Cards */}
-            <TouchableOpacity style={[styles.recipeCard, { width: CARD_WIDTH }]}>
-              <Image source={pasta2} style={styles.recipeImage} />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.9)']}
-                style={styles.recipeGradient}
+          
+          {recipes.length === 0 ? (
+            <View style={styles.emptyRecipes}>
+              <Ionicons name="restaurant-outline" size={48} color="#CCC" />
+              <Text style={styles.emptyText}>No recipes yet</Text>
+              <TouchableOpacity
+                style={styles.createRecipeButton}
+                onPress={() => navigation.navigate('AddRecipe')}
               >
-                <View style={styles.recipeInfo}>
-                  <View style={styles.recipeBadge}>
-                    <Text style={styles.recipeBadgeText}>Italian</Text>
-                  </View>
-                  <Text style={styles.recipeTitle}>Italian Pasta</Text>
-                  <View style={styles.recipeStats}>
-                    <View style={styles.recipeStat}>
-                      <Ionicons name="time-outline" size={16} color="#fff" />
-                      <Text style={styles.recipeStatText}>30m</Text>
-                    </View>
-                    <View style={styles.recipeStat}>
-                      <Ionicons name="heart" size={16} color="#FF3B30" />
-                      <Text style={styles.recipeStatText}>128</Text>
-                    </View>
-                    <View style={styles.recipeStat}>
-                      <Ionicons name="star" size={16} color="#FFD700" />
-                      <Text style={styles.recipeStatText}>4.8</Text>
-                    </View>
-                  </View>
+                <Text style={styles.createRecipeText}>Create Your First Recipe</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.recipesContainer}
+            >
+              {recipes.map((recipe, index) => (
+                <View key={recipe.id} style={[
+                  styles.recipeCardWrapper,
+                  index === 0 && styles.firstRecipeCard,
+                  index === recipes.length - 1 && styles.lastRecipeCard,
+                ]}>
+                  {renderRecipeCard({ item: recipe })}
                 </View>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.recipeCard, { width: CARD_WIDTH }]}>
-              <Image source={curry} style={styles.recipeImage} />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.9)']}
-                style={styles.recipeGradient}
-              >
-                <View style={styles.recipeInfo}>
-                  <View style={[styles.recipeBadge, styles.indianBadge]}>
-                    <Text style={styles.recipeBadgeText}>Indian</Text>
-                  </View>
-                  <Text style={styles.recipeTitle}>Chicken Curry</Text>
-                  <View style={styles.recipeStats}>
-                    <View style={styles.recipeStat}>
-                      <Ionicons name="time-outline" size={16} color="#fff" />
-                      <Text style={styles.recipeStatText}>45m</Text>
-                    </View>
-                    <View style={styles.recipeStat}>
-                      <Ionicons name="heart" size={16} color="#FF3B30" />
-                      <Text style={styles.recipeStatText}>96</Text>
-                    </View>
-                    <View style={styles.recipeStat}>
-                      <Ionicons name="star" size={16} color="#FFD700" />
-                      <Text style={styles.recipeStatText}>4.6</Text>
-                    </View>
-                  </View>
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.recipeCard, { width: CARD_WIDTH }]}>
-              <Image source={beef} style={styles.recipeImage} />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.9)']}
-                style={styles.recipeGradient}
-              >
-                <View style={styles.recipeInfo}>
-                  <View style={[styles.recipeBadge, styles.mexicanBadge]}>
-                    <Text style={styles.recipeBadgeText}>Mexican</Text>
-                  </View>
-                  <Text style={styles.recipeTitle}>Beef Tacos</Text>
-                  <View style={styles.recipeStats}>
-                    <View style={styles.recipeStat}>
-                      <Ionicons name="time-outline" size={16} color="#fff" />
-                      <Text style={styles.recipeStatText}>25m</Text>
-                    </View>
-                    <View style={styles.recipeStat}>
-                      <Ionicons name="heart" size={16} color="#FF3B30" />
-                      <Text style={styles.recipeStatText}>156</Text>
-                    </View>
-                    <View style={styles.recipeStat}>
-                      <Ionicons name="star" size={16} color="#FFD700" />
-                      <Text style={styles.recipeStatText}>4.9</Text>
-                    </View>
-                  </View>
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          </ScrollView>
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         {/* Recipe Collections Section */}
@@ -681,102 +684,110 @@ const styles = StyleSheet.create({
   },
   recipesSection: {
     marginTop: 24,
+    paddingHorizontal: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
-    paddingHorizontal: 20,
-  },
-  sectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1A1A1A',
+    color: '#000',
   },
-  seeAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  seeAllText: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '600',
+  addRecipeButton: {
+    padding: 4,
   },
   recipesContainer: {
-    paddingLeft: 20,
-    paddingRight: 20,
+    paddingBottom: 16,
+  },
+  recipeCardWrapper: {
+    marginRight: 16,
+  },
+  firstRecipeCard: {
+    marginLeft: 0,
+  },
+  lastRecipeCard: {
+    marginRight: 0,
   },
   recipeCard: {
-    height: 320,
-    marginRight: 20,
-    borderRadius: 16,
+    width: CARD_WIDTH,
+    height: 200,
+    borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#FFF',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowRadius: 4,
+    elevation: 3,
   },
   recipeImage: {
     width: '100%',
     height: '100%',
+    resizeMode: 'cover',
   },
   recipeGradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: '60%',
-    padding: 20,
+    height: '50%',
+    padding: 16,
     justifyContent: 'flex-end',
   },
-  recipeBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-    backgroundColor: '#007AFF',
-    marginBottom: 8,
-  },
-  indianBadge: {
-    backgroundColor: '#FF9500',
-  },
-  mexicanBadge: {
-    backgroundColor: '#FF3B30',
-  },
-  recipeBadgeText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
   recipeInfo: {
-    gap: 8,
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   recipeTitle: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#FFF',
+    marginBottom: 8,
   },
-  recipeStats: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  recipeStat: {
+  recipeMetaInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
-  recipeStatText: {
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  metaText: {
     color: '#FFF',
     fontSize: 14,
+    marginLeft: 4,
+  },
+  emptyRecipes: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    backgroundColor: '#F8F8F8',
+    borderRadius: 12,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  createRecipeButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  createRecipeText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   collectionsSection: {
     paddingHorizontal: 20,
